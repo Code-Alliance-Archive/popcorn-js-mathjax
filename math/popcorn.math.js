@@ -3,15 +3,14 @@
 (function ( Popcorn ) {
 
   /**
-   * Text Popcorn plug-in
+   * Math Popcorn plug-in
    *
-   * Places text in an element on the page.  Plugin options include:
+   * Places math equations in an element on the page.  Plugin options include:
    * Options parameter will need a start, end.
    *   Start: Is the time that you want this plug-in to execute
    *   End: Is the time that you want this plug-in to stop executing
-   *   Text: Is the text that you want to appear in the target
-   *   Escape: {true|false} Whether to escape the text (e.g., html strings)
-   *   Multiline: {true|false} Whether newlines should be turned into <br>s
+   *   Equation: Is the formula that you want to appear in the target
+   *   Source: Element ID of the hidden element (e.g. div) that contains the math equation (Alternative to Equation)  
    *   Target: Is the ID of the element where the text should be placed. An empty target
    *           will be placed on top of the media element
    *
@@ -20,71 +19,29 @@
    * Example:
    *  var p = Popcorn('#video')
    *
-   *    // Simple text
-   *    .text({
+   *    // Simple formula from div
+   *    .math({
    *      start: 5, // seconds
    *      end: 15, // seconds
-   *      text: 'This video made exclusively for drumbeat.org',
-   *      target: 'textdiv'
+   *      source: "math_crossproduct",
+   *      target: 'mathdiv'
    *     })
    *
-   *    // HTML text, rendered as HTML
-   *    .text({
+   *    // Formula from string
+   *    .math({
    *      start: 15, // seconds
    *      end: 20, // seconds
-   *      text: '<p>This video made <em>exclusively</em> for drumbeat.org</p>',
-   *      target: 'textdiv'
+   *      equation: = {n \choose k} p^k (1-p)^{ n-k} \]', // An Identity of Ramujan
+   *      target: 'mathdiv'
    *    })
    *
-   *    // HTML text, escaped and rendered as plain text
-   *    .text({
-   *      start: 20, // seconds
-   *      end: 25, // seconds
-   *      text: 'This is an HTML p element: <p>paragraph</p>',
-   *      escape: true,
-   *      target: 'textdiv'
-   *    })
-   *
-   *    // Multi-Line HTML text, escaped and rendered as plain text
-   *    .text({
-   *      start: 25, // seconds
-   *      end: 30, // seconds
-   *      text: 'This is an HTML p element: <p>paragraph</p>\nThis is an HTML b element: <b>bold</b>',
-   *      escape: true,
-   *      multiline: true,
-   *      target: 'textdiv'
-   *    });
-   *
-   *    // Subtitle text
-   *    .text({
+   *    // Subtitle formula
+   *    .math({
    *      start: 30, // seconds
    *      end: 40, // seconds
-   *      text: 'This will be overlayed on the video',
+   *      source: 'math_lorenz',
    *     })
    **/
-
-  /**
-   * HTML escape code from mustache.js, used under MIT Licence
-   * https://github.com/janl/mustache.js/blob/master/mustache.js
-   **/
-  var escapeMap = {
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': '&quot;',
-    "'": '&#39;'
-  };
-  
-  function escapeHTML( string, multiline ) {
-    return String( string ).replace( /&(?!\w+;)|[<>"']/g, function ( s ) {
-      return escapeMap[ s ] || s;
-    });
-  }
-  
-  function newlineToBreak( string ) {
-    // Deal with both \r\n and \n
-    return string.replace( /\r?\n/gm, "<br>" );
-  }
 
   // Subtitle specific functionality
   function createSubtitleContainer( context, id ) {
@@ -122,9 +79,9 @@
 
     manifest: {
       about: {
-        name: "Popcorn Text Plugin",
+        name: "Popcorn Math Plugin",
         version: "0.1",
-        author: "@humphd"
+        author: "@peterdotjs, @korsair"
       },
       options: {
         start: {
@@ -137,21 +94,22 @@
           type: "number",
           label: "End"
         },
-        text: {
+        equation: {
           elem: "input",
           type: "text",
-          label: "Text",
+          label: "Equation",
           "default": "Popcorn.js"
         },
-        escape: {
+        source: {
           elem: "input",
-          type: "checkbox",
-          label: "Escape"
+          type: "text",
+          label: "Source",
+          "default": "Popcorn.js"
         },
-        multiline: {
+        target: {
           elem: "input",
-          type: "checkbox",
-          label: "Multiline"
+          type: "text",
+          label: "Target"
         }
       }
     },
@@ -159,7 +117,8 @@
     _setup: function( options ) {
 
       var target,
-          text,
+          source,
+          equation,
           container = options._container = document.createElement( "div" );
 
       container.style.display = "none";
@@ -167,6 +126,10 @@
       if ( options.target ) {
         // Try to use supplied target
         target = Popcorn.dom.find( options.target );
+		// Try to use the supplied source
+		if( source !== null) {
+			source = Popcorn.dom.find( options.source );
+		}
 
         if ( !target ) {
           target = createSubtitleContainer( this, options.target );
@@ -187,31 +150,42 @@
       // cache reference to actual target container
       options._target = target;
 
-      // Escape HTML text if requested
-      text = !!options.escape ? escapeHTML( options.text ) :
-                                    options.text;									
-		
-      // Swap newline for <br> if requested
-      text = !!options.multiline ? newlineToBreak ( text ) : text;
-      container.innerHTML = text || "";
-	  
-	  var math_id = options.id;
-	  
-	  if(math_id){
-			container.innerHTML = document.getElementById(math_id).innerHTML;
-			MathJax.Hub.Typeset(container);
+	  if(source !== null ) {
+         if(Popcorn.dom.find(options.source) !== null) {
+           equation = Popcorn.dom.find(options.source).innerHTML;
+         }
+	     else {
+           console.log("[ERROR] popcorn.math.js - Source id not found: " + options.source)
+         }
+      }
+ 	  else if(options.equation !== null){
+		equation = options.equation;
 	  }
+	  else {
+	    console.log("[ERROR] popcorn.math.js - No equation or source given.")	
+      }
+      
+      //container.innerHTML = source.innerHTML || "";
+      container.innerHTML = equation || "";
+      MathJax.Hub.Typeset(container);
+	  
+	  //var math_id = options.id;
+	  
+	  //if(math_id){
+		//	container.innerHTML = document.getElementById(math_id).innerHTML;
+		//	MathJax.Hub.Typeset(container);
+	  //}
 
       target.appendChild( container );
 
       options.toString = function() {
         // use the default option if it doesn't exist
-        return options.text || options._natives.manifest.options.text[ "default" ];
+        return options.math || options._natives.manifest.options.math[ "default" ];
       };
     },
 
     /**
-     * @member text
+     * @member math
      * The start function will be executed when the currentTime
      * of the video  reaches the start time provided by the
      * options variable
@@ -221,7 +195,7 @@
     },
 
     /**
-     * @member text
+     * @member math
      * The end function will be executed when the currentTime
      * of the video  reaches the end time provided by the
      * options variable
